@@ -25,6 +25,7 @@ import org.jfrog.hudson.util.BuildUniqueIdentifierHelper;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
+import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
@@ -157,6 +158,7 @@ public class BuildInfo implements Serializable {
     }
 
     public void appendDeployableArtifacts(String deployableArtifactsPath, FilePath ws, TaskListener listener) throws IOException, InterruptedException {
+        listener.getLogger().println("appendDeployableArtifacts:" + deployableArtifactsPath + "/" + ws.getName());
         List<DeployDetails> deployableArtifacts = ws.act(new DeployPathsAndPropsCallable(deployableArtifactsPath, listener, this));
         this.deployableArtifacts.addAll(deployableArtifacts);
     }
@@ -234,11 +236,13 @@ public class BuildInfo implements Serializable {
         private String deployableArtifactsPath;
         private TaskListener listener;
         private ArrayListMultimap<String, String> propertiesMap;
+        private BuildInfo buildInfo;
 
         public DeployPathsAndPropsCallable(String deployableArtifactsPath, TaskListener listener, BuildInfo buildInfo) {
             this.deployableArtifactsPath = deployableArtifactsPath;
             this.listener = listener;
             this.propertiesMap = getbuildPropertiesMap(buildInfo);
+            this.buildInfo = buildInfo;
         }
 
         public List<DeployDetails> invoke(File file, VirtualChannel virtualChannel) throws IOException, InterruptedException {
@@ -249,9 +253,13 @@ public class BuildInfo implements Serializable {
                 deployableArtifacts.addAll(DeployableArtifactsUtils.loadDeployableArtifactsFromFile(deployableArtifactsFile));
                 deployableArtifactsFile.delete();
                 for (DeployableArtifactDetail artifact : deployableArtifacts) {
+                    listener.getLogger().println("artifact.getArtifactDest(): " + artifact.getArtifactDest());
+                    String ext = artifact.getArtifactDest().substring(artifact.getArtifactDest().lastIndexOf(".") + 1);
+
+                    String dest = artifact.getArtifactDest().substring(0, artifact.getArtifactDest().lastIndexOf('.')) + "-" + buildInfo.buildNumber + "." + ext;
                     DeployDetails.Builder builder = new DeployDetails.Builder()
                             .file(new File(artifact.getSourcePath()))
-                            .artifactPath(artifact.getArtifactDest())
+                            .artifactPath(dest)
                             .addProperties(propertiesMap)
                             .targetRepository("empty_repo")
                             .sha1(artifact.getSha1());
